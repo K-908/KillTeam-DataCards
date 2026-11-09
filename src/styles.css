@@ -1,0 +1,90 @@
+:root { font-family: system-ui, -apple-system, Segoe UI, sans-serif; color: #20242a; background: #f1f2f4; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+button, select { font: inherit; }
+button { cursor: pointer; border: 1px solid #b8bec7; border-radius: 6px; background: white; padding: 8px 12px; color: #20242a; }
+button:hover:not(:disabled) { background: #edf1f6; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+select { border: 1px solid #b8bec7; border-radius: 6px; background: white; padding: 8px; max-width: 100%; }
+.app-header { background: #1c222b; color: white; padding: 26px max(24px, calc((100vw - 1380px) / 2)); }
+.app-header h1 { margin: 0 0 4px; font-size: 27px; }
+.app-header p { margin: 0; color: #d3d9e0; }
+main { max-width: 1428px; padding: 24px; margin: auto; }
+.panel { background: #fff; border: 1px solid #dce0e5; border-radius: 10px; padding: 22px; margin-bottom: 20px; }
+.section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; color: #59616b; }
+.section-heading > div { display: flex; align-items: center; gap: 10px; }
+.section-heading h2 { font-size: 20px; color: #20242a; margin: 0; }
+.step { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #323c4a; color: white; font-weight: 700; }
+.drop-zone { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-height: 72px; padding: 16px; border: 2px dashed #bfc7d1; border-radius: 8px; background: #f8fafc; }
+.drop-zone span, .hint { color: #59616b; }
+.source-hint { color: #59616b; font-size: 13px; margin: 10px 0 -4px; }
+.message { padding: 10px 12px; background: #eef3fa; border-radius: 6px; overflow-wrap: anywhere; }
+.source-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); gap: 14px; margin-top: 18px; }
+.source-tile { border: 1px solid #dce0e5; border-radius: 7px; padding: 8px; min-width: 0; }
+.source-image-wrap { position: relative; }
+.source-preview-button { display: block; width: 100%; padding: 0; border: 0; border-radius: 3px; overflow: hidden; }
+.source-preview-button:hover:not(:disabled) { background: transparent; outline: 2px solid #486f9f; }
+.source-preview-button:focus-visible { outline: 3px solid #486f9f; outline-offset: 2px; }
+.source-preview-button img { display: block; width: 100%; aspect-ratio: 121 / 70; object-fit: contain; background: #eee; }
+.source-delete-button { position: absolute; top: 6px; right: 6px; z-index: 1; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 2px solid white; border-radius: 3px; background: #b42318; color: white; font-size: 21px; font-weight: 700; line-height: 1; box-shadow: 0 1px 4px #0005; }
+.source-delete-button:hover:not(:disabled) { background: #8f1c14; }
+.source-delete-button:focus-visible { outline: 3px solid #263e60; outline-offset: 2px; }
+.rotation-tag { display: inline-block; margin-top: 5px; color: #515d6b; font-size: 11px; }
+.source-tile-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.source-tile-footer > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.source-tile-footer button { flex: none; font-size: 12px; padding: 5px 8px; }
+.card-preview-dialog { max-width: min(96vw, 1700px); max-height: 96vh; padding: 0; border: 1px solid #aeb7c1; border-radius: 8px; box-shadow: 0 12px 40px #0005; }
+.card-preview-dialog::backdrop { background: #111a26b8; }
+.card-preview-content { padding: 12px; }
+.card-preview-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+.card-preview-header strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.card-preview-content img { display: block; max-width: calc(96vw - 26px); max-height: calc(96vh - 86px); width: auto; height: auto; object-fit: contain; background: #eee; }
+.preview-error { color: #a13c27; font-size: 13px; margin: 10px 0 0; }
+.hint { margin-top: -4px; }
+.reverse-choice { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 18px 0 10px; padding: 0; border: 0; }
+.reverse-choice legend { margin-bottom: 8px; font-weight: 600; }
+.reverse-choice label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.reverse-choice input { margin: 0; }
+.shared-select { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0; font-weight: 600; }
+.shared-select select { min-width: min(100%, 350px); font-weight: 400; }
+.shared-reverse-preview { position: relative; width: 350px; max-width: 100%; border: 1px solid #cbd1d8; border-radius: 3px; }
+.shared-reverse-preview img { width: 100%; aspect-ratio: 121 / 70; object-fit: contain; }
+.locked-reverse { margin: 16px 0 20px; }
+.locked-reverse > strong { display: block; margin-bottom: 8px; }
+.reverse-edit-button { position: absolute; right: 6px; bottom: 6px; z-index: 1; border-color: #263e60; background: white; font-weight: 600; box-shadow: 0 1px 4px #0005; }
+.lock-reverse-button { margin: 0 0 20px; }
+.reverse-designer { padding: 16px; margin: 12px 0 20px; border: 1px solid #dce0e5; border-radius: 7px; background: #f8fafc; }
+.design-files, .design-options { display: flex; flex-wrap: wrap; align-items: start; gap: 12px 20px; }
+.design-file-field, .design-options label { display: grid; gap: 5px; min-width: min(100%, 250px); font-size: 13px; font-weight: 600; }
+.design-file-field button { justify-self: start; }
+.design-file-field small { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #59616b; font-weight: 400; }
+.design-options { margin-top: 16px; }
+.design-slider input { width: 100%; margin: 4px 0 0; }
+.design-slider output { font-weight: 400; }
+.range-ends { display: flex; justify-content: space-between; color: #59616b; font-size: 11px; font-weight: 400; }
+.design-hint { margin: 14px 0; color: #59616b; font-size: 13px; }
+.empty-state { color: #68717e; background: #f8fafc; border-radius: 6px; padding: 20px; }
+.card-list { display: grid; gap: 10px; }
+.card-row { display: flex; align-items: center; gap: 12px; border: 1px solid #dce0e5; border-radius: 7px; padding: 10px; }
+.card-number { font-weight: 700; width: 24px; text-align: center; flex: none; }
+.card-thumb { width: 145px; aspect-ratio: 121 / 70; object-fit: contain; background: #eee; flex: none; }
+.card-details { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: end; gap: 10px 18px; }
+.card-details strong { display: block; flex-basis: 100%; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-details label { display: grid; gap: 4px; min-width: 180px; max-width: 360px; font-size: 12px; color: #59616b; }
+.row-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 4px; }
+.row-actions button { padding: 5px 8px; }
+.sheet-list { display: grid; gap: 24px; }
+.layout-controls { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 8px 0 16px; }
+.layout-controls label { display: grid; gap: 5px; min-width: 170px; font-size: 13px; font-weight: 600; }
+.sheet-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.sheet-figure { margin: 0; min-width: 0; }
+.sheet-figure figcaption { font-weight: 600; margin-bottom: 8px; }
+.sheet-preview { width: 100%; position: relative; background: white; border: 1px solid #aeb7c1; box-shadow: 0 2px 8px #0001; }
+.sheet-card { position: absolute; display: grid; place-items: center; background: #fafafa; outline: 1px dashed #969fa9; overflow: hidden; font-size: 11px; color: #9a4b23; }
+.sheet-card img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.issues { color: #a13c27; padding-left: 22px; }
+.export-panel p { line-height: 1.5; }
+.primary { background: #263e60; color: white; border-color: #263e60; font-weight: 700; padding: 11px 18px; }
+.primary:hover:not(:disabled) { background: #35567f; }
+@media (max-width: 800px) { .sheet-pair { grid-template-columns: 1fr; } .card-row { flex-wrap: wrap; } .card-details { min-width: calc(100% - 200px); } .row-actions { margin-left: auto; } }
+@media (max-width: 520px) { main { padding: 12px; } .panel { padding: 14px; } .card-thumb { width: 100px; } .card-details { min-width: calc(100% - 150px); } .card-details label { min-width: 100%; } .section-heading { align-items: start; } .section-heading > span { font-size: 12px; text-align: right; } }
