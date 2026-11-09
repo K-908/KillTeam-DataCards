@@ -7,7 +7,7 @@ import type { Card, SourceFile, SourceSide } from './types'
 
 const DESIGN_SOURCE_ID = 'created-reverse-source'
 const DESIGN_SIDE_ID = 'created-reverse'
-const BUILTIN_BACKGROUNDS = Object.entries(import.meta.glob<string>('./img/backgrounds/*.png', { eager: true, query: '?url', import: 'default' }))
+const BUILTIN_BACKGROUNDS = Object.entries(import.meta.glob<string>(['./img/backgrounds/*.png', './img/backgrounds/*.jpg', './img/backgrounds/*.jpeg', './img/backgrounds/*.webp'], { eager: true, query: '?url', import: 'default' }))
   .sort(([first], [second]) => first.localeCompare(second))
   .map(([path, url], index) => ({ path, url, label: `Background ${index + 1}` }))
 
