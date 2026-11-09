@@ -34,5 +34,3 @@ Four full-size cards cannot fit vertically on US Letter, so the vertical option 
 
 The app does not save a session after a reload. Keep your source files and import them again when needed. It does not fetch card artwork or include any in the repository.
 The import panel links to the official Kill Team downloads page. Download team PDFs there and upload them locally; the app never fetches those files itself.
-
-See [`Docs/`](Docs/) for the four implementation checkpoints and [`agents.md`](agents.md) for the project specification.

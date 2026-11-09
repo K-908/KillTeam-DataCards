@@ -4,3 +4,5 @@ dist/
 *.local
 *.tsbuildinfo
 *.pdf
+/Docs/
+/agents.md
