@@ -5,6 +5,9 @@ export interface SourceSide {
   sourceId: string
   kind: SideKind
   pageIndex?: number
+  cardIndex?: number
+  cropBox?: { left: number; bottom: number; right: number; top: number }
+  suggestedNote?: boolean
   pdfRotationDegrees?: number
   autoRotated?: boolean
   label: string

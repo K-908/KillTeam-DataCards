@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { createPrintPdf } from './exportPdf'
-import { importSource, renderLargePreview } from './importSources'
+import { importSource, renderLargePreview, type ImportResult } from './importSources'
 import { backSideId, CARD_HEIGHT_MM, CARD_WIDTH_MM, getPrintLayout, makeSheets, slotPosition, type LayoutChoice, type PaperSize, type PrintLayout } from './layout'
 import { createReverseDesign, type LogoRotation, type LogoSettings } from './reverseDesign'
 import type { Card, SourceFile, SourceSide } from './types'
@@ -13,6 +13,23 @@ interface ReverseDesignResult {
   logoFile: File | null
   logoSettings: LogoSettings
   side: SourceSide
+}
+
+interface PendingSheetReview {
+  name: string
+  result: ImportResult
+  selectedIds: Set<string>
+}
+
+interface ImportedTeamLogo {
+  sourceId: string
+  sourceName: string
+  file: File
+  previewUrl: string
+}
+
+function teamName(filename: string) {
+  return filename.match(/team_rules_([^-]+)-/i)?.[1].replaceAll('_', ' ') ?? filename
 }
 
 function cardIssues(cards: Card[], sharedBackId: string | null, sources: SourceSide[], missingBackMessage: string) {
@@ -126,6 +143,8 @@ export default function App() {
   const [layoutChoice, setLayoutChoice] = useState<LayoutChoice>('vertical')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [sheetReviews, setSheetReviews] = useState<PendingSheetReview[]>([])
+  const [extractedLogos, setExtractedLogos] = useState<ImportedTeamLogo[]>([])
   const [previewSide, setPreviewSide] = useState<SourceSide | null>(null)
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
   const [previewError, setPreviewError] = useState('')
@@ -154,6 +173,7 @@ export default function App() {
     return result
   }, [cards, sharedBackId])
   const printLayout = useMemo(() => getPrintLayout(paperSize, layoutChoice), [paperSize, layoutChoice])
+  const activeReview = sheetReviews[0]
   const sheets = useMemo(() => makeSheets(cards, printLayout), [cards, printLayout])
   const paperLabel = paperSize === 'a4' ? 'A4' : 'US Letter'
   const missingBackMessage = reverseChoice === 'created'
@@ -234,24 +254,64 @@ export default function App() {
     setMessage('Importing files…')
     const errors: string[] = []
     let importedSides = 0
+    let sheetsToReview = 0
     try {
       for (const file of Array.from(incoming)) {
         try {
           const result = await importSource(file)
           files.current.set(result.sides[0].sourceId, result.file)
-          setSources(previous => [...previous, ...result.sides])
-          importedSides += result.sides.length
+          if (result.sheetInfo) {
+            setSheetReviews(previous => [...previous, {
+              name: file.name,
+              result,
+              selectedIds: new Set(result.sides.filter(side => !side.suggestedNote).map(side => side.id)),
+            }])
+            sheetsToReview++
+          } else {
+            setSources(previous => [...previous, ...result.sides])
+            importedSides += result.sides.length
+          }
         } catch (error) {
           errors.push(`${file.name}: ${error instanceof Error ? error.message : String(error)}`)
         }
       }
       setMessage([
         importedSides ? `Imported ${importedSides} side${importedSides === 1 ? '' : 's'}.` : '',
+        sheetsToReview ? `${sheetsToReview} sheet PDF${sheetsToReview === 1 ? '' : 's'} ready for review.` : '',
         ...errors,
       ].filter(Boolean).join(' '))
     } finally {
       setBusy(false)
     }
+  }
+
+  function updateReviewSelection(ids: Set<string>) {
+    setSheetReviews(previous => previous.map((review, index) => index === 0 ? { ...review, selectedIds: ids } : review))
+  }
+
+  function confirmSheetReview() {
+    if (!activeReview || activeReview.selectedIds.size === 0) return
+    const selected = activeReview.result.sides.filter(side => activeReview.selectedIds.has(side.id))
+    setSources(previous => [...previous, ...selected])
+    if (activeReview.result.extractedLogo) {
+      const { file, previewUrl } = activeReview.result.extractedLogo
+      setExtractedLogos(previous => [...previous, {
+        sourceId: selected[0].sourceId,
+        sourceName: activeReview.name,
+        file,
+        previewUrl,
+      }])
+    }
+    setSheetReviews(previous => previous.slice(1))
+    setMessage(`Imported ${selected.length} card side${selected.length === 1 ? '' : 's'} from ${activeReview.name}.`)
+  }
+
+  function discardSheetReview() {
+    if (!activeReview) return
+    files.current.delete(activeReview.result.sides[0].sourceId)
+    if (previewSide?.sourceId === activeReview.result.sides[0].sourceId) setPreviewSide(null)
+    setSheetReviews(previous => previous.slice(1))
+    setMessage(`Skipped ${activeReview.name}.`)
   }
 
   function onInputChange(event: ChangeEvent<HTMLInputElement>) {
@@ -354,10 +414,49 @@ export default function App() {
           <div className="drop-zone" onDragOver={event => event.preventDefault()} onDrop={onDrop}>
             <input ref={input} type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" onChange={onInputChange} hidden />
             <button type="button" onClick={() => input.current?.click()} disabled={busy}>Choose PDF or images</button>
-            <span>or drop files here. Each PDF page becomes one side.</span>
+            <span>or drop files here. Single-card pages import directly; card sheets are split for review.</span>
           </div>
+          <p className="source-hint">Need team rules? <a href="https://www.warhammer-community.com/en-gb/downloads/kill-team/" target="_blank" rel="noopener noreferrer">Download them from Warhammer Community</a>, then upload the PDF here.</p>
           <p className="source-hint">Click a card image to read it at a larger size. Deleting an assigned front removes its card; deleting a reverse clears that selection.</p>
           {message && <p className="message" role="status">{message}</p>}
+          {activeReview && <section className="sheet-review" aria-labelledby="sheet-review-heading">
+            <div className="sheet-review-heading">
+              <div>
+                <h3 id="sheet-review-heading">Review detected cards</h3>
+                <p>{activeReview.name} · {activeReview.result.sides.length} regions on {activeReview.result.sheetInfo?.detectedPages} of {activeReview.result.sheetInfo?.pageCount} pages. Pages without a card grid are skipped.</p>
+              </div>
+              {sheetReviews.length > 1 && <span>{sheetReviews.length - 1} more to review</span>}
+            </div>
+            <p>Card-sized outlines located these regions. Notes are unchecked by default. Select the sides you want to import; you can pair fronts and backs afterward.</p>
+            {activeReview.result.extractedLogo && <div className="detected-logo">
+              <img src={activeReview.result.extractedLogo.previewUrl} alt={`Extracted ${teamName(activeReview.name)} logo`} />
+              <span>Orange team logo found on page 1. After importing, you can use it in a created shared reverse.</span>
+            </div>}
+            <div className="review-actions">
+              <button type="button" onClick={() => updateReviewSelection(new Set(activeReview.result.sides.map(side => side.id)))}>Select all</button>
+              <button type="button" onClick={() => updateReviewSelection(new Set(activeReview.result.sides.filter(side => !side.suggestedNote).map(side => side.id)))}>Exclude Notes</button>
+            </div>
+            <div className="review-grid">
+              {activeReview.result.sides.map(side => <article className="review-tile" key={side.id}>
+                <button type="button" className="source-preview-button" onClick={() => openSourcePreview(side)} aria-label={`Enlarge ${side.label}`}>
+                  <img src={side.thumbnailUrl} alt="" />
+                </button>
+                <label>
+                  <input type="checkbox" checked={activeReview.selectedIds.has(side.id)} onChange={event => {
+                    const next = new Set(activeReview.selectedIds)
+                    if (event.target.checked) next.add(side.id)
+                    else next.delete(side.id)
+                    updateReviewSelection(next)
+                  }} />
+                  <span>Page {(side.pageIndex ?? 0) + 1} · card {(side.cardIndex ?? 0) + 1}{side.suggestedNote ? ' · Notes' : ''}</span>
+                </label>
+              </article>)}
+            </div>
+            <div className="review-actions review-confirm">
+              <button type="button" className="primary" onClick={confirmSheetReview} disabled={busy || activeReview.selectedIds.size === 0}>Import {activeReview.selectedIds.size} selected sides</button>
+              <button type="button" onClick={discardSheetReview} disabled={busy}>Skip this PDF</button>
+            </div>
+          </section>}
           {sources.length > 0 && (
             <div className="source-grid">
               {sources.map(side => (
@@ -386,7 +485,7 @@ export default function App() {
             <div><span className="step">2</span><h2 id="cards-heading">Set fronts and backs</h2></div>
             <span>{cards.length} cards</span>
           </div>
-          <p className="hint">Add a front above. For a two-sided card, choose its back page below. All other cards use one shared reverse.</p>
+          <p className="hint">Add a front above. Click a card image to enlarge it. For a two-sided card, choose its back page below. All other cards use one shared reverse.</p>
           {lockedSide ? (
             <div className="locked-reverse">
               <strong>Shared reverse</strong>
@@ -445,6 +544,16 @@ export default function App() {
                   setLogoFile(null)
                 }}>Remove logo</button>}
               </div>
+              {extractedLogos.length > 0 && <div className="extracted-logos">
+                <strong>Logos found in imported team PDFs</strong>
+                <div className="extracted-logo-list">
+                  {extractedLogos.map(logo => <button type="button" key={logo.sourceId} className={logoFile === logo.file ? 'extracted-logo-choice selected' : 'extracted-logo-choice'} onClick={() => setLogoFile(logo.file)} aria-label={`Use ${teamName(logo.sourceName)} logo`}>
+                    <img src={logo.previewUrl} alt="" />
+                    <span>{teamName(logo.sourceName)}</span>
+                  </button>)}
+                </div>
+                <small>The orange pixels were extracted locally as a transparent PNG. Select one to use it as the team logo.</small>
+              </div>}
               <div className="design-options">
                 <label className="design-slider">
                   <span>Horizontal position: <output>{logoSettings.horizontal}%</output></span>
@@ -485,6 +594,7 @@ export default function App() {
             <div className="card-list">
               {cards.map((card, index) => {
                 const front = sourceById.get(card.frontId)
+                const back = card.backMode === 'custom' && card.backId ? sourceById.get(card.backId) : null
                 const otherUsed = new Set<string>()
                 for (const other of cards) {
                   if (other.id === card.id) continue
@@ -496,7 +606,14 @@ export default function App() {
                 return (
                   <article className="card-row" key={card.id}>
                     <span className="card-number">{index + 1}</span>
-                    {front && <img className="card-thumb" src={front.thumbnailUrl} alt="" />}
+                    {front && <button type="button" className="card-thumb-button" onClick={() => openSourcePreview(front)} aria-label={`Enlarge front of card ${index + 1}`} title={front.label}>
+                      <img className="card-thumb" src={front.thumbnailUrl} alt="" />
+                      <span className="card-thumb-label">Front</span>
+                    </button>}
+                    {back && <button type="button" className="card-thumb-button" onClick={() => openSourcePreview(back)} aria-label={`Enlarge back of card ${index + 1}`} title={back.label}>
+                      <img className="card-thumb" src={back.thumbnailUrl} alt="" />
+                      <span className="card-thumb-label">Back</span>
+                    </button>}
                     <div className="card-details">
                       <strong title={front?.label}>{front?.label ?? 'Missing front'}</strong>
                       <label>

@@ -19,6 +19,27 @@ main { max-width: 1428px; padding: 24px; margin: auto; }
 .drop-zone span, .hint { color: #59616b; }
 .source-hint { color: #59616b; font-size: 13px; margin: 10px 0 -4px; }
 .message { padding: 10px 12px; background: #eef3fa; border-radius: 6px; overflow-wrap: anywhere; }
+.sheet-review { margin-top: 18px; padding: 18px; border: 1px solid #aebdce; border-radius: 8px; background: #f8fafc; }
+.sheet-review-heading { display: flex; justify-content: space-between; align-items: start; gap: 14px; }
+.sheet-review-heading h3 { margin: 0 0 5px; font-size: 18px; }
+.sheet-review-heading p, .sheet-review > p { margin: 0 0 12px; color: #59616b; font-size: 13px; overflow-wrap: anywhere; }
+.sheet-review-heading > span { flex: none; font-size: 12px; color: #59616b; }
+.review-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; max-height: 60vh; overflow: auto; padding: 2px; }
+.review-tile { min-width: 0; border: 1px solid #cbd3dd; border-radius: 6px; background: white; padding: 6px; }
+.review-tile img { display: block; width: 100%; aspect-ratio: 121 / 70; object-fit: contain; background: #eee; }
+.review-tile label { display: flex; align-items: center; gap: 6px; padding: 7px 2px 2px; cursor: pointer; font-size: 12px; }
+.review-tile input { flex: none; }
+.review-confirm { margin-bottom: 0; }
+.detected-logo { display: flex; align-items: center; gap: 12px; margin: 12px 0; padding: 10px; border: 1px solid #dce0e5; border-radius: 6px; background: white; font-size: 13px; color: #59616b; }
+.detected-logo img { width: 76px; height: 76px; object-fit: contain; flex: none; background-color: #f2f2f2; background-image: linear-gradient(45deg, #ddd 25%, transparent 25%), linear-gradient(-45deg, #ddd 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ddd 75%), linear-gradient(-45deg, transparent 75%, #ddd 75%); background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; }
+.extracted-logos { margin-top: 16px; }
+.extracted-logos > strong { display: block; margin-bottom: 8px; font-size: 13px; }
+.extracted-logos > small { display: block; margin-top: 8px; color: #59616b; }
+.extracted-logo-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.extracted-logo-choice { display: grid; justify-items: center; gap: 5px; width: 112px; padding: 8px; font-size: 12px; text-transform: capitalize; }
+.extracted-logo-choice.selected { border: 2px solid #263e60; background: #eef3fa; }
+.extracted-logo-choice img { width: 74px; height: 74px; object-fit: contain; }
 .source-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); gap: 14px; margin-top: 18px; }
 .source-tile { border: 1px solid #dce0e5; border-radius: 7px; padding: 8px; min-width: 0; }
 .source-image-wrap { position: relative; }
@@ -67,7 +88,11 @@ main { max-width: 1428px; padding: 24px; margin: auto; }
 .card-list { display: grid; gap: 10px; }
 .card-row { display: flex; align-items: center; gap: 12px; border: 1px solid #dce0e5; border-radius: 7px; padding: 10px; }
 .card-number { font-weight: 700; width: 24px; text-align: center; flex: none; }
-.card-thumb { width: 145px; aspect-ratio: 121 / 70; object-fit: contain; background: #eee; flex: none; }
+.card-thumb-button { position: relative; flex: none; padding: 0; border: 0; border-radius: 3px; overflow: hidden; }
+.card-thumb-button:hover:not(:disabled) { background: transparent; outline: 2px solid #486f9f; }
+.card-thumb-button:focus-visible { outline: 3px solid #486f9f; outline-offset: 2px; }
+.card-thumb { display: block; width: 145px; aspect-ratio: 121 / 70; object-fit: contain; background: #eee; }
+.card-thumb-label { position: absolute; left: 4px; bottom: 4px; padding: 2px 5px; border-radius: 3px; background: #fffE; font-size: 11px; font-weight: 600; }
 .card-details { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: end; gap: 10px 18px; }
 .card-details strong { display: block; flex-basis: 100%; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-details label { display: grid; gap: 4px; min-width: 180px; max-width: 360px; font-size: 12px; color: #59616b; }

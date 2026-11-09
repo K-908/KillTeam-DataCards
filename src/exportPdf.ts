@@ -73,6 +73,7 @@ export async function createPrintPdf(
   const pdf = await PDFDocument.create()
   const sideById = new Map(sides.map(side => [side.id, side]))
   const embedded = new Map<string, Embedded>()
+  const sourceDocuments = new Map<string, PDFDocument>()
 
   async function getEmbedded(sideId: string) {
     const cached = embedded.get(sideId)
@@ -83,7 +84,17 @@ export async function createPrintPdf(
     if (!source) throw new Error(`Missing source file for ${side.label}`)
     let value: Embedded
     if (source.kind === 'pdf') {
-      const [page] = await pdf.embedPdf(source.bytes, [side.pageIndex ?? 0])
+      let page: PDFEmbeddedPage
+      if (side.cropBox) {
+        let sourceDocument = sourceDocuments.get(side.sourceId)
+        if (!sourceDocument) {
+          sourceDocument = await PDFDocument.load(source.bytes)
+          sourceDocuments.set(side.sourceId, sourceDocument)
+        }
+        page = await pdf.embedPage(sourceDocument.getPage(side.pageIndex ?? 0), side.cropBox)
+      } else {
+        ;[page] = await pdf.embedPdf(source.bytes, [side.pageIndex ?? 0])
+      }
       value = { kind: 'pdf', value: page, rotationDegrees: side.pdfRotationDegrees ?? 0 }
     } else {
       value = { kind: 'image', value: await pdf.embedPng(source.bytes) }
