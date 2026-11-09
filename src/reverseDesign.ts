@@ -5,19 +5,31 @@ export interface LogoSettings {
   vertical: number
   size: number
   rotation: LogoRotation
+  color: string | null
 }
+
+export type ReverseBackground =
+  | { kind: 'upload'; file: File }
+  | { kind: 'builtin'; url: string }
+  | { kind: 'color'; color: string }
 
 const CARD_WIDTH_PX = 1815
 const CARD_HEIGHT_PX = 1050
 
 export async function createReverseDesign(
-  backgroundFile: File,
+  backgroundSource: ReverseBackground,
   logoFile: File | null,
   logoSettings: LogoSettings,
 ) {
-  const background = await createImageBitmap(backgroundFile)
+  let background: ImageBitmap | null = null
   let logo: ImageBitmap | null = null
   try {
+    if (backgroundSource.kind === 'upload') background = await createImageBitmap(backgroundSource.file)
+    if (backgroundSource.kind === 'builtin') {
+      const response = await fetch(backgroundSource.url)
+      if (!response.ok) throw new Error('Included background could not be loaded')
+      background = await createImageBitmap(await response.blob())
+    }
     if (logoFile) logo = await createImageBitmap(logoFile)
     const canvas = document.createElement('canvas')
     canvas.width = CARD_WIDTH_PX
@@ -25,19 +37,37 @@ export async function createReverseDesign(
     const context = canvas.getContext('2d')
     if (!context) throw new Error('Canvas is unavailable')
 
-    // Fill the card without stretching the image; crop any excess at the edges.
-    const backgroundScale = Math.max(canvas.width / background.width, canvas.height / background.height)
-    const backgroundWidth = background.width * backgroundScale
-    const backgroundHeight = background.height * backgroundScale
-    context.drawImage(
-      background,
-      (canvas.width - backgroundWidth) / 2,
-      (canvas.height - backgroundHeight) / 2,
-      backgroundWidth,
-      backgroundHeight,
-    )
+    if (background) {
+      // Fill the card without stretching the image; crop any excess at the edges.
+      const backgroundScale = Math.max(canvas.width / background.width, canvas.height / background.height)
+      const backgroundWidth = background.width * backgroundScale
+      const backgroundHeight = background.height * backgroundScale
+      context.drawImage(
+        background,
+        (canvas.width - backgroundWidth) / 2,
+        (canvas.height - backgroundHeight) / 2,
+        backgroundWidth,
+        backgroundHeight,
+      )
+    } else if (backgroundSource.kind === 'color') {
+      context.fillStyle = backgroundSource.color
+      context.fillRect(0, 0, canvas.width, canvas.height)
+    }
 
     if (logo) {
+      let logoImage: CanvasImageSource = logo
+      if (logoSettings.color) {
+        const tintedLogo = document.createElement('canvas')
+        tintedLogo.width = logo.width
+        tintedLogo.height = logo.height
+        const tintedContext = tintedLogo.getContext('2d')
+        if (!tintedContext) throw new Error('Canvas is unavailable')
+        tintedContext.drawImage(logo, 0, 0)
+        tintedContext.globalCompositeOperation = 'source-in'
+        tintedContext.fillStyle = logoSettings.color
+        tintedContext.fillRect(0, 0, logo.width, logo.height)
+        logoImage = tintedLogo
+      }
       const third = canvas.width / 3
       const sideways = logoSettings.rotation === 90 || logoSettings.rotation === 270
       const rotatedWidth = sideways ? logo.height : logo.width
@@ -55,7 +85,7 @@ export async function createReverseDesign(
       context.save()
       context.translate(centerX, centerY)
       context.rotate(logoSettings.rotation * Math.PI / 180)
-      context.drawImage(logo, -logo.width * scale / 2, -logo.height * scale / 2, logo.width * scale, logo.height * scale)
+      context.drawImage(logoImage, -logo.width * scale / 2, -logo.height * scale / 2, logo.width * scale, logo.height * scale)
       context.restore()
     }
 
@@ -69,7 +99,7 @@ export async function createReverseDesign(
       height: canvas.height,
     }
   } finally {
-    background.close()
+    background?.close()
     logo?.close()
   }
 }

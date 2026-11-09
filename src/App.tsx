@@ -2,14 +2,27 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent 
 import { createPrintPdf } from './exportPdf'
 import { importSource, renderLargePreview, type ImportResult } from './importSources'
 import { backSideId, CARD_HEIGHT_MM, CARD_WIDTH_MM, getPrintLayout, makeSheets, slotPosition, type LayoutChoice, type PaperSize, type PrintLayout } from './layout'
-import { createReverseDesign, type LogoRotation, type LogoSettings } from './reverseDesign'
+import { createReverseDesign, type LogoRotation, type LogoSettings, type ReverseBackground } from './reverseDesign'
 import type { Card, SourceFile, SourceSide } from './types'
 
 const DESIGN_SOURCE_ID = 'created-reverse-source'
 const DESIGN_SIDE_ID = 'created-reverse'
+const BUILTIN_BACKGROUNDS = Object.entries(import.meta.glob<string>('./img/backgrounds/*.png', { eager: true, query: '?url', import: 'default' }))
+  .sort(([first], [second]) => first.localeCompare(second))
+  .map(([path, url], index) => ({ path, url, label: `Background ${index + 1}` }))
+
+function CardSideIcon({ doubleSided }: { doubleSided: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {doubleSided && <rect x="7" y="4" width="13" height="15" rx="1.5" />}
+      <rect x={doubleSided ? 4 : 5} y={doubleSided ? 7 : 4} width="13" height="15" rx="1.5" fill="white" />
+      <path d={doubleSided ? 'M7 11h7M7 14h4' : 'M8 8h7M8 11h7M8 14h4'} />
+    </svg>
+  )
+}
 
 interface ReverseDesignResult {
-  backgroundFile: File
+  backgroundSource: ReverseBackground
   logoFile: File | null
   logoSettings: LogoSettings
   side: SourceSide
@@ -121,7 +134,7 @@ function SharedReversePreview({ side, onEnlarge, onRemoveBackground, removeDisab
       <button type="button" className="source-preview-button" onClick={onEnlarge} aria-label="Enlarge shared reverse">
         <img src={side.thumbnailUrl} alt={side.label} />
       </button>
-      {onRemoveBackground && <button type="button" className="source-delete-button" onClick={onRemoveBackground} disabled={removeDisabled} aria-label="Remove background image" title="Remove background image">×</button>}
+      {onRemoveBackground && <button type="button" className="source-delete-button" onClick={onRemoveBackground} disabled={removeDisabled} aria-label="Remove created reverse background" title="Remove created reverse background">×</button>}
       {onEdit && <button type="button" className="reverse-edit-button" onClick={onEdit}>Edit</button>}
     </div>
   )
@@ -133,9 +146,12 @@ export default function App() {
   const [reverseChoice, setReverseChoice] = useState<'uploaded' | 'created'>('uploaded')
   const [reverseLocked, setReverseLocked] = useState(false)
   const [uploadedBackId, setUploadedBackId] = useState<string | null>(null)
+  const [backgroundMode, setBackgroundMode] = useState<'upload' | 'builtin' | 'color'>('upload')
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null)
+  const [builtinBackgroundUrl, setBuiltinBackgroundUrl] = useState<string | null>(BUILTIN_BACKGROUNDS[0]?.url ?? null)
+  const [backgroundColor, setBackgroundColor] = useState('#263e60')
   const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoSettings, setLogoSettings] = useState<LogoSettings>({ horizontal: 50, vertical: 50, size: 100, rotation: 0 })
+  const [logoSettings, setLogoSettings] = useState<LogoSettings>({ horizontal: 50, vertical: 50, size: 100, rotation: 0, color: null })
   const [designResult, setDesignResult] = useState<ReverseDesignResult | null>(null)
   const [designBusy, setDesignBusy] = useState(false)
   const [designError, setDesignError] = useState('')
@@ -148,14 +164,20 @@ export default function App() {
   const [previewSide, setPreviewSide] = useState<SourceSide | null>(null)
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
   const [previewError, setPreviewError] = useState('')
+  const [pairingFrontId, setPairingFrontId] = useState<string | null>(null)
   const files = useRef(new Map<string, SourceFile>())
   const input = useRef<HTMLInputElement>(null)
   const backgroundInput = useRef<HTMLInputElement>(null)
   const logoInput = useRef<HTMLInputElement>(null)
   const previewDialog = useRef<HTMLDialogElement>(null)
 
+  const backgroundSource = useMemo<ReverseBackground | null>(() => {
+    if (backgroundMode === 'upload') return backgroundFile ? { kind: 'upload', file: backgroundFile } : null
+    if (backgroundMode === 'builtin') return builtinBackgroundUrl ? { kind: 'builtin', url: builtinBackgroundUrl } : null
+    return { kind: 'color', color: backgroundColor }
+  }, [backgroundMode, backgroundFile, builtinBackgroundUrl, backgroundColor])
   const designedSide = designResult
-    && designResult.backgroundFile === backgroundFile
+    && designResult.backgroundSource === backgroundSource
     && designResult.logoFile === logoFile
     && designResult.logoSettings === logoSettings
     ? designResult.side : null
@@ -177,7 +199,7 @@ export default function App() {
   const sheets = useMemo(() => makeSheets(cards, printLayout), [cards, printLayout])
   const paperLabel = paperSize === 'a4' ? 'A4' : 'US Letter'
   const missingBackMessage = reverseChoice === 'created'
-    ? backgroundFile ? designError || 'Wait for the created reverse to finish.' : 'Choose a background image for the shared reverse.'
+    ? backgroundSource ? designError || 'Wait for the created reverse to finish.' : 'Choose a background for the shared reverse.'
     : 'Choose the shared reverse for single-sided cards.'
   const issues = useMemo(() => cardIssues(cards, sharedBackId, allSides, missingBackMessage), [cards, sharedBackId, allSides, missingBackMessage])
 
@@ -186,8 +208,14 @@ export default function App() {
   }, [reverseLocked, sharedBackId])
 
   useEffect(() => {
+    if (pairingFrontId && (used.has(pairingFrontId) || !sources.some(side => side.id === pairingFrontId) || !sources.some(side => side.id !== pairingFrontId && !used.has(side.id)))) {
+      setPairingFrontId(null)
+    }
+  }, [pairingFrontId, sources, used])
+
+  useEffect(() => {
     files.current.delete(DESIGN_SOURCE_ID)
-    if (!backgroundFile) {
+    if (!backgroundSource) {
       setDesignBusy(false)
       setDesignError('')
       return
@@ -196,12 +224,12 @@ export default function App() {
     setDesignBusy(true)
     setDesignError('')
     const timer = window.setTimeout(() => {
-      void createReverseDesign(backgroundFile, logoFile, logoSettings)
+      void createReverseDesign(backgroundSource, logoFile, logoSettings)
         .then(result => {
           if (cancelled) return
           files.current.set(DESIGN_SOURCE_ID, { kind: 'image', bytes: result.bytes })
           setDesignResult({
-            backgroundFile,
+            backgroundSource,
             logoFile,
             logoSettings,
             side: {
@@ -226,7 +254,7 @@ export default function App() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [backgroundFile, logoFile, logoSettings])
+  }, [backgroundSource, logoFile, logoSettings])
 
   useEffect(() => {
     const dialog = previewDialog.current
@@ -324,18 +352,20 @@ export default function App() {
     if (!busy) void addFiles(event.dataTransfer.files)
   }
 
-  function addCard(frontId: string) {
-    if (used.has(frontId)) return
+  function addCard(frontId: string, backMode: Card['backMode'] = 'shared', backId: string | null = null) {
+    if (busy || used.has(frontId) || (backMode === 'custom' && (!backId || used.has(backId) || backId === frontId))) return
     setCards(previous => [...previous, {
       id: crypto.randomUUID(),
       frontId,
-      backMode: 'shared',
-      backId: null,
+      backMode,
+      backId,
     }])
+    setPairingFrontId(null)
   }
 
   function deleteSourceSide(side: SourceSide) {
     if (busy) return
+    if (pairingFrontId === side.id) setPairingFrontId(null)
     const remaining = sources.filter(source => source.id !== side.id)
     setSources(remaining)
     if (!remaining.some(source => source.sourceId === side.sourceId)) {
@@ -357,13 +387,10 @@ export default function App() {
 
   function removeBackground() {
     if (busy) return
+    setBackgroundMode('upload')
     setBackgroundFile(null)
     setReverseLocked(false)
     if (previewSide?.id === DESIGN_SIDE_ID) setPreviewSide(null)
-  }
-
-  function updateCard(id: string, update: Partial<Card>) {
-    setCards(previous => previous.map(card => card.id === id ? { ...card, ...update } : card))
   }
 
   function moveCard(index: number, direction: number) {
@@ -417,7 +444,7 @@ export default function App() {
             <span>or drop files here. Single-card pages import directly; card sheets are split for review.</span>
           </div>
           <p className="source-hint">Need card PDFs? <a href="https://www.warhammer-community.com/en-gb/downloads/kill-team/" target="_blank" rel="noopener noreferrer">Download team sheets from Warhammer Community</a> or <a href="https://www.reddit.com/r/killteam/comments/1fue0wb/all_kill_team_pdf_links_from_the_app/" target="_blank" rel="noopener noreferrer">find one-card-per-page PDFs in this Reddit list</a>, then upload the PDF here.</p>
-          <p className="source-hint">Click a card image to read it at a larger size. Deleting an assigned front removes its card; deleting a reverse clears that selection.</p>
+          <p className="source-hint">Click a card image to read it at a larger size, or to select a reverse while pairing. Deleting an assigned front removes its card; deleting a reverse clears that selection.</p>
           {message && <p className="message" role="status">{message}</p>}
           {activeReview && <section className="sheet-review" aria-labelledby="sheet-review-heading">
             <div className="sheet-review-heading">
@@ -457,25 +484,48 @@ export default function App() {
               <button type="button" onClick={discardSheetReview} disabled={busy}>Skip this PDF</button>
             </div>
           </section>}
+          {pairingFrontId && !used.has(pairingFrontId) && <p className="pairing-prompt" role="status">Choose the reverse for {sourceById.get(pairingFrontId)?.label} by clicking an unused card thumbnail, or use its “Select reverse” button.</p>}
           {sources.length > 0 && (
             <div className="source-grid">
-              {sources.map(side => (
-                <article className="source-tile" key={side.id}>
-                  <div className="source-image-wrap">
-                    <button type="button" className="source-preview-button" onClick={() => openSourcePreview(side)} aria-label={`Enlarge ${side.label}`}>
-                      <img src={side.thumbnailUrl} alt="" />
-                    </button>
-                    <button type="button" className="source-delete-button" onClick={() => deleteSourceSide(side)} disabled={busy} aria-label={`Delete ${side.label}`} title={`Delete ${side.label}`}>×</button>
-                  </div>
-                  {side.autoRotated && <span className="rotation-tag">Rotated 90° CCW</span>}
-                  <div className="source-tile-footer">
-                    <span title={side.label}>{side.label}</span>
-                    <button type="button" onClick={() => addCard(side.id)} disabled={used.has(side.id) || busy}>
-                      {used.has(side.id) ? 'Assigned' : 'Add front'}
-                    </button>
-                  </div>
-                </article>
-              ))}
+              {sources.map(side => {
+                const assigned = used.has(side.id)
+                const assignedDuringPairing = pairingFrontId !== null && assigned
+                const isPairingFront = pairingFrontId === side.id && !assigned
+                const canSelectReverse = pairingFrontId !== null && !isPairingFront && !assigned && !busy
+                const availableBack = sources.some(candidate => candidate.id !== side.id && !used.has(candidate.id))
+                return (
+                  <article className={`source-tile${isPairingFront ? ' pairing-front' : ''}${canSelectReverse ? ' reverse-candidate' : ''}${assignedDuringPairing ? ' assigned-during-pairing' : ''}`} key={side.id}>
+                    <div className="source-image-wrap">
+                      <button type="button" className="source-preview-button" onClick={() => canSelectReverse ? addCard(pairingFrontId, 'custom', side.id) : openSourcePreview(side)} disabled={assignedDuringPairing} aria-label={canSelectReverse ? `Select ${side.label} as reverse` : `Enlarge ${side.label}`} title={assignedDuringPairing ? 'Already assigned' : canSelectReverse ? 'Select reverse' : 'Enlarge card'}>
+                        <img src={side.thumbnailUrl} alt="" />
+                      </button>
+                      <button type="button" className="source-delete-button" onClick={() => deleteSourceSide(side)} disabled={busy || assignedDuringPairing} aria-label={`Delete ${side.label}`} title={`Delete ${side.label}`}>×</button>
+                    </div>
+                    {side.autoRotated && <span className="rotation-tag">Rotated 90° CCW</span>}
+                    <div className="source-tile-footer">
+                      <span title={side.label}>{side.label}</span>
+                      <div className="source-card-actions">
+                        {isPairingFront ? (
+                          <button type="button" className="cancel-pairing-button" onClick={() => setPairingFrontId(null)}>Cancel</button>
+                        ) : canSelectReverse ? (
+                          <button type="button" className="select-reverse-button" onClick={() => addCard(pairingFrontId, 'custom', side.id)}>Select reverse</button>
+                        ) : (
+                          <>
+                            <button type="button" className="side-icon-button" onClick={() => addCard(side.id)} disabled={assigned || busy} aria-label={`Add ${side.label} as a one-sided card`} title="One-sided card">
+                              <CardSideIcon doubleSided={false} />
+                            </button>
+                            <button type="button" className="side-icon-button" onClick={() => setPairingFrontId(side.id)} disabled={assigned || busy || !availableBack} aria-label={`Add ${side.label} as a two-sided card`} title={availableBack ? 'Two-sided card' : 'Import another unused side to pair'}>
+                              <CardSideIcon doubleSided />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {assigned && <span className="source-assigned">Assigned</span>}
+                    {isPairingFront && <span className="source-pairing-label">Choose its reverse from the highlighted cards.</span>}
+                  </article>
+                )
+              })}
             </div>
           )}
         </section>
@@ -485,7 +535,7 @@ export default function App() {
             <div><span className="step">2</span><h2 id="cards-heading">Set fronts and backs</h2></div>
             <span>{cards.length} cards</span>
           </div>
-          <p className="hint">Add a front above. Click a card image to enlarge it. For a two-sided card, choose its back page below. All other cards use one shared reverse.</p>
+          <p className="hint">Use the one-sided or two-sided icon on an imported card. For a two-sided card, click an unused card thumbnail or its “Select reverse” button. Outside pairing, click a card image to enlarge it. One-sided cards use the shared reverse.</p>
           {lockedSide ? (
             <div className="locked-reverse">
               <strong>Shared reverse</strong>
@@ -502,7 +552,7 @@ export default function App() {
           <fieldset className="reverse-choice">
             <legend>Shared reverse for single-sided cards</legend>
             <label><input type="radio" name="reverse-choice" checked={reverseChoice === 'uploaded'} onChange={() => setReverseChoice('uploaded')} /> Use an uploaded card side</label>
-            <label><input type="radio" name="reverse-choice" checked={reverseChoice === 'created'} onChange={() => setReverseChoice('created')} /> Create from images</label>
+            <label><input type="radio" name="reverse-choice" checked={reverseChoice === 'created'} onChange={() => setReverseChoice('created')} /> Design a reverse</label>
           </fieldset>
           {reverseChoice === 'uploaded' ? (
             <>
@@ -521,16 +571,22 @@ export default function App() {
             </>
           ) : (
             <div className="reverse-designer">
+              <fieldset className="background-mode">
+                <legend>Background</legend>
+                <label><input type="radio" name="background-mode" checked={backgroundMode === 'upload'} onChange={() => setBackgroundMode('upload')} /> Upload image</label>
+                <label><input type="radio" name="background-mode" checked={backgroundMode === 'builtin'} onChange={() => setBackgroundMode('builtin')} disabled={BUILTIN_BACKGROUNDS.length === 0} /> Included backgrounds</label>
+                <label><input type="radio" name="background-mode" checked={backgroundMode === 'color'} onChange={() => setBackgroundMode('color')} /> Solid color</label>
+              </fieldset>
               <div className="design-files">
-                <div className="design-file-field">
-                  <span>Background image</span>
+                {backgroundMode === 'upload' && <div className="design-file-field">
+                  <span>Uploaded background</span>
                   <input ref={backgroundInput} type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" onChange={event => {
                     if (event.target.files?.[0]) setBackgroundFile(event.target.files[0])
                     event.target.value = ''
                   }} hidden />
                   <button type="button" onClick={() => backgroundInput.current?.click()}>Choose background image</button>
                   <small title={backgroundFile?.name}>{backgroundFile?.name ?? 'No image selected'}</small>
-                </div>
+                </div>}
                 <div className="design-file-field">
                   <span>Team logo (optional)</span>
                   <input ref={logoInput} type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" onChange={event => {
@@ -544,6 +600,17 @@ export default function App() {
                   setLogoFile(null)
                 }}>Remove logo</button>}
               </div>
+              {backgroundMode === 'builtin' && <div className="background-gallery" role="group" aria-label="Included backgrounds">
+                {BUILTIN_BACKGROUNDS.map(background => <button type="button" key={background.path} className={builtinBackgroundUrl === background.url ? 'background-choice selected' : 'background-choice'} onClick={() => setBuiltinBackgroundUrl(background.url)} aria-pressed={builtinBackgroundUrl === background.url} aria-label={`Use ${background.label}`}>
+                  <img src={background.url} alt="" loading="lazy" />
+                  <span>{background.label}</span>
+                </button>)}
+              </div>}
+              {backgroundMode === 'color' && <label className="background-color-field">
+                <span>Background color</span>
+                <input type="color" value={backgroundColor} onChange={event => setBackgroundColor(event.target.value)} />
+                <output>{backgroundColor.toUpperCase()}</output>
+              </label>}
               {extractedLogos.length > 0 && <div className="extracted-logos">
                 <strong>Logos found in imported team PDFs</strong>
                 <div className="extracted-logo-list">
@@ -579,8 +646,16 @@ export default function App() {
                     <option value={270}>90° counter-clockwise</option>
                   </select>
                 </label>
+                <label className="logo-color-field">
+                  <span>Logo color</span>
+                  <span className="logo-color-value">
+                    <input type="color" value={logoSettings.color ?? '#ef6a28'} onChange={event => setLogoSettings(previous => ({ ...previous, color: event.target.value }))} disabled={!logoFile} aria-label="Logo color" />
+                    <output>{logoSettings.color?.toUpperCase() ?? 'Original colors'}</output>
+                  </span>
+                </label>
+                {logoFile && logoSettings.color && <button type="button" className="logo-original-button" onClick={() => setLogoSettings(previous => ({ ...previous, color: null }))}>Use original colors</button>}
               </div>
-              <p className="design-hint">The background fills the card. At 100% size, the logo occupies about one third of the card width. Position sliders keep it within the card.</p>
+              <p className="design-hint">Image backgrounds fill the card without stretching. At 100% size, the logo occupies about one third of the card width. Position sliders keep it within the card. Choosing a logo color replaces its visible colors while keeping its transparency.</p>
               {designBusy && <p role="status">Building reverse preview…</p>}
               {designError && <p className="preview-error" role="alert">{designError}</p>}
               {designedSide && <SharedReversePreview side={designedSide} onEnlarge={() => openSourcePreview(designedSide)} onRemoveBackground={removeBackground} removeDisabled={busy} />}
@@ -590,19 +665,11 @@ export default function App() {
           </>
           )}
 
-          {cards.length === 0 ? <p className="empty-state">No cards yet. Use “Add front” on a source thumbnail.</p> : (
+          {cards.length === 0 ? <p className="empty-state">No cards yet. Choose the one-sided or two-sided icon on a source thumbnail.</p> : (
             <div className="card-list">
               {cards.map((card, index) => {
                 const front = sourceById.get(card.frontId)
                 const back = card.backMode === 'custom' && card.backId ? sourceById.get(card.backId) : null
-                const otherUsed = new Set<string>()
-                for (const other of cards) {
-                  if (other.id === card.id) continue
-                  otherUsed.add(other.frontId)
-                  if (other.backMode === 'custom' && other.backId) otherUsed.add(other.backId)
-                }
-                otherUsed.add(card.frontId)
-                if (sharedBackId) otherUsed.add(sharedBackId)
                 return (
                   <article className="card-row" key={card.id}>
                     <span className="card-number">{index + 1}</span>
@@ -616,24 +683,8 @@ export default function App() {
                     </button>}
                     <div className="card-details">
                       <strong title={front?.label}>{front?.label ?? 'Missing front'}</strong>
-                      <label>
-                        <span>Reverse type</span>
-                        <select value={card.backMode} onChange={event => updateCard(card.id, { backMode: event.target.value as Card['backMode'], backId: null })}>
-                          <option value="shared">Shared reverse</option>
-                          <option value="custom">Two-sided card</option>
-                        </select>
-                      </label>
-                      {card.backMode === 'custom' && (
-                        <label>
-                          <span>Back page</span>
-                          <select value={card.backId ?? ''} onChange={event => updateCard(card.id, { backId: event.target.value || null })}>
-                            <option value="">Choose a page or image…</option>
-                            {sources.filter(side => !otherUsed.has(side.id)).map(side => (
-                              <option key={side.id} value={side.id}>{side.label}</option>
-                            ))}
-                          </select>
-                        </label>
-                      )}
+                      <span className="card-type">{card.backMode === 'custom' ? 'Two-sided card' : 'One-sided card · shared reverse'}</span>
+                      {card.backMode === 'custom' && !back && <span className="card-missing-back">Reverse missing. Remove this card and pair it again.</span>}
                     </div>
                     <div className="row-actions">
                       <button type="button" onClick={() => moveCard(index, -1)} disabled={index === 0} aria-label={`Move card ${index + 1} up`}>↑</button>
