@@ -33,4 +33,4 @@ The default is A4 portrait with four 121 × 70 mm cards stacked vertically. The 
 Four full-size cards cannot fit vertically on US Letter, so the vertical option changes to 3 × 1 when Letter is selected. Always print at **actual size / 100% scale**. PDF pages alternate front, reverse, front, reverse. Small marks at the card corners help with cutting.
 
 The app does not save a session after a reload. Keep your source files and import them again when needed. It does not fetch card artwork or include any in the repository.
-The import panel links to the official Kill Team downloads page. Download team PDFs there and upload them locally; the app never fetches those files itself.
+The import panel links to the official Kill Team downloads page and a Reddit list of one-card-per-page PDFs. Download the PDFs and upload them locally; the app never fetches those files itself.

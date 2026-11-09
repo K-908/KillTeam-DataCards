@@ -416,7 +416,7 @@ export default function App() {
             <button type="button" onClick={() => input.current?.click()} disabled={busy}>Choose PDF or images</button>
             <span>or drop files here. Single-card pages import directly; card sheets are split for review.</span>
           </div>
-          <p className="source-hint">Need team rules? <a href="https://www.warhammer-community.com/en-gb/downloads/kill-team/" target="_blank" rel="noopener noreferrer">Download them from Warhammer Community</a>, then upload the PDF here.</p>
+          <p className="source-hint">Need card PDFs? <a href="https://www.warhammer-community.com/en-gb/downloads/kill-team/" target="_blank" rel="noopener noreferrer">Download team sheets from Warhammer Community</a> or <a href="https://www.reddit.com/r/killteam/comments/1fue0wb/all_kill_team_pdf_links_from_the_app/" target="_blank" rel="noopener noreferrer">find one-card-per-page PDFs in this Reddit list</a>, then upload the PDF here.</p>
           <p className="source-hint">Click a card image to read it at a larger size. Deleting an assigned front removes its card; deleting a reverse clears that selection.</p>
           {message && <p className="message" role="status">{message}</p>}
           {activeReview && <section className="sheet-review" aria-labelledby="sheet-review-heading">
